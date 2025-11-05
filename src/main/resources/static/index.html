@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="/webjars/bootstrap/5.3.8/css/bootstrap.min.css">
+    <link rel="stylesheet" href="index.css">
+    <link rel="icon" type="image/x-icon" href="/img/player-16.png">
+</head>
+<body>
+<div>
+    Name: <input id="player-name" type="text" size="6">&nbsp;
+    ID: <input id="player-id" type="text" size="6">&nbsp;
+    <button id="conn-btn" type="button">Connect</button>
+    <button id="disc-btn" type="button">Disconnect</button>
+</div>
+<div style="margin-top: 3px">
+    Status: <input id="status" type="text" size="40">
+</div>
+<div id="canvas-div" style="resize:both;overflow:auto">
+    <canvas width="600" height="400">
+        <p>Canvas element not supported</p>
+    </canvas>
+</div>
+<textarea id="out-text" rows="5" cols="70">output</textarea>
+<span style="display:none">
+    <img id="player-img" src="img/player-32.png" />
+    <img id="drone-img" src="img/drone-32.png" />
+</span>
+<script type="text/javascript" src="index.js"></script>
+</body>
+</html>
