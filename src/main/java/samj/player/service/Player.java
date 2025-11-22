@@ -1,4 +1,4 @@
-package samj.player.model;
+package samj.player.service;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -7,48 +7,64 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
-public class Player implements Comparable<String> {
+/*
+ * Use of the Player object is restricted to its package -> NO public modifiers.
+ */
+
+class Player implements Comparable<String> {
 	private static final AtomicInteger PLAYER_ID = new AtomicInteger(0);
 	private static final AtomicInteger DRONE_ID = new AtomicInteger(0);
 
-	@Getter @JsonProperty
+	@Getter(AccessLevel.PACKAGE)
+	@JsonProperty
 	private final String id;
 
-	@Getter @JsonIgnore
+	@Getter(AccessLevel.PACKAGE)
+	@JsonIgnore
 	private final boolean auto; // autonomous, without user control. 
 
-	@Getter @JsonIgnore
+	@Getter(AccessLevel.PACKAGE)
+	@JsonIgnore
 	private final Board board;
 
-	@Getter @Setter @JsonProperty
+	@Getter(AccessLevel.PACKAGE) @Setter(AccessLevel.PACKAGE)
+	@JsonProperty
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	private String name;
 
-	@Getter @Setter @JsonIgnore
+	@Getter(AccessLevel.PACKAGE) @Setter(AccessLevel.PACKAGE)
+	@JsonIgnore
 	private String sessionId;
 
-	@Getter @Setter @JsonProperty
+	@Getter(AccessLevel.PACKAGE) @Setter(AccessLevel.PACKAGE)
+	@JsonProperty
 	private int x;
 
-	@Getter @Setter @JsonProperty
+	@Getter(AccessLevel.PACKAGE) @Setter(AccessLevel.PACKAGE)
+	@JsonProperty
 	private int y;
 
-	@Getter @Setter @JsonProperty
+	@Getter(AccessLevel.PACKAGE) @Setter(AccessLevel.PACKAGE)
+	@JsonProperty
 	private int dx;
 
-	@Getter @Setter @JsonProperty
+	@Getter(AccessLevel.PACKAGE) @Setter(AccessLevel.PACKAGE)
+	@JsonProperty
 	private int dy;
 
-	@Getter @Setter @JsonIgnore
+	@Getter(AccessLevel.PACKAGE) @Setter(AccessLevel.PACKAGE)
+	@JsonIgnore
 	private boolean moved = true; // update to UI at least once
 
-	@Getter @Setter @JsonIgnore
+	@Getter(AccessLevel.PACKAGE) @Setter(AccessLevel.PACKAGE)
+	@JsonIgnore
 	private int bounce = 0;
 
-	public Player(Board board, String name, boolean auto) throws InterruptedException {
+	Player(Board board, String name, boolean auto) throws InterruptedException {
 		this.id = (auto) ? "d" + DRONE_ID.incrementAndGet() : "p" + PLAYER_ID.incrementAndGet();
 		this.name = name;
 		this.board = board;
@@ -58,12 +74,12 @@ public class Player implements Comparable<String> {
 		}
 	}
 
-	public void setXY(int x, int y) {
+	void setXY(int x, int y) {
 		this.x = x;
 		this.y = y;
 	}
 
-	public void key(boolean up, boolean down, boolean left, boolean right) {
+	void key(boolean up, boolean down, boolean left, boolean right) {
 		if (up) {
 			if (left) {
 				dx = (x > 0) ? -board.motionDiagPixels : 0;
@@ -99,7 +115,7 @@ public class Player implements Comparable<String> {
 
 	}
 
-	public boolean move() throws InterruptedException {
+	boolean move() throws InterruptedException {
 		moved = false;
 		if (dx != 0) {
 			x += dx;
@@ -151,7 +167,7 @@ public class Player implements Comparable<String> {
 		return moved;
 	}
 	
-	public boolean takeMoved() {
+	boolean takeMoved() {
 		if (!moved) {
 			return false;
 		}
@@ -201,12 +217,66 @@ public class Player implements Comparable<String> {
 		return board.randBool() ? -1 : 1;
 	}
 
+	void checkCollision(Player otherPlayer) throws InterruptedException {
+		if (isCollision(otherPlayer)) {
+			swapDirection(otherPlayer);
+			int count = 5;
+			do {
+				move();
+				otherPlayer.move();
+			} while (isCollision(otherPlayer) && count-- >= 0);
+		}
+	}
 
-	public void incBounce() {
+	private boolean isCollision(Player otherPlayer) {
+		int diffX = Math.abs(this.x - otherPlayer.x);
+		if (diffX > board.checkPlayerSize) {
+			return false;
+		}
+		int diffY = Math.abs(this.y - otherPlayer.y);
+		return (diffY <= board.checkPlayerSize);
+	}
+
+	private void swapDirection(Player otherPlayer) throws InterruptedException {
+		int xDiff = Math.abs(this.x - otherPlayer.x);
+		int yDiff = Math.abs(this.y - otherPlayer.y);
+
+		if (!this.auto || (this.dx == 0 && this.dy == 0)) {
+			if (!otherPlayer.auto || (otherPlayer.dx == 0 && otherPlayer.dy == 0)) {
+				otherPlayer.changeDirection();
+			} else if (xDiff > yDiff) {
+				otherPlayer.dx = -otherPlayer.dx;
+			} else {
+				otherPlayer.dy = -otherPlayer.dy;
+			}
+			otherPlayer.move();
+			return;
+		}
+		if (otherPlayer.dx == 0 && otherPlayer.dy == 0) {
+			if (xDiff > yDiff) {
+				this.dx = -this.dx;
+			} else {
+				this.dy = -this.dy;
+			}
+			return;
+		}
+		
+		if (xDiff > yDiff) {
+			int temp = this.dx;
+			this.dx = otherPlayer.dx;
+			otherPlayer.dx = temp;
+		} else {
+			int temp = this.dy;
+			this.dy = otherPlayer.dy;
+			otherPlayer.dy = temp;
+		}
+	}
+
+	void incBounce() {
 		bounce++;
 	}
 
-	public void clearBounce() {
+	void clearBounce() {
 		bounce = 0;
 	}
 
@@ -238,7 +308,7 @@ public class Player implements Comparable<String> {
 		return id.compareTo(otherId);
 	}
 
-	public String toDesc() {
+	String toDesc() {
 		return id + '\t' + x + '\t' + y;
 	}
 
