@@ -8,20 +8,19 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.apachecommons.CommonsLog;
-import samj.player.model.Board;
-import samj.player.model.Init;
-import samj.player.model.Player;
-import samj.player.util.JacksonMapper;
 import samj.player.util.PlayerUtil;
 import samj.player.ws.PlayerWebSocketHandler;
 import samj.player.ws.PlayerWebSocketSession;
 
+/*
+ * Ensure the Player objects are restricted to Board and this class.
+ */
 @RequiredArgsConstructor
 @CommonsLog
 public class PlayerService {
 	private final ExecutorService virtualThreadExecutor;
-	private final JacksonMapper mapper;
-	private final Board board;
+
+	private final Board board = new Board();
 
 	private static final int DRONE_COUNT = 5;
 
@@ -51,25 +50,32 @@ public class PlayerService {
 	}
 	
 	public String getInit(String id) {
-		Init desc = new Init(id, board);
-		return mapper.toString(desc);
+		return "w:" + board.width + "\th:" + board.height + "\tid:" + id;
 	}
 
-	public Player addPlayer(PlayerWebSocketSession session) throws InterruptedException {
+	public String addPlayer(PlayerWebSocketSession session) throws InterruptedException {
 		Player player = board.addPlayer(session.getPlayerName(), false);
 		session.setPlayerId(player.getId());
 		player.setSessionId(session.getSessionId());
 		log.info("WebSocket " + session.getSessionId() + " Player id: " + player.getId());
 		startTimerThread();
-		return player;
+		return player.getId();
 	}
 
-	public Player getPlayer(String id) {
-		return board.getPlayer(id);
+	public String getPlayerDesc(String id) throws InterruptedException {
+		return board.getPlayerDesc(id);
+	}
+
+	public boolean getPlayerInfo(String id, PlayerInfo info) throws InterruptedException {
+		return board.getPlayerInfo(id, info);
 	}
 	
-	public List<Player> getPlayerList() {
-		return board.getPlayerList();
+	public String getFirstPlayerId() throws InterruptedException {
+		return board.getFirstPlayerId();
+	}
+
+	public void iteratePlayer(StringBuilder sb, PlayerInfo info, PlayerFn fn) throws InterruptedException {
+		board.iteratePlayer(sb, info, fn);
 	}
 
 	public void removePlayer(String id) throws InterruptedException {
@@ -81,16 +87,12 @@ public class PlayerService {
 		}
 	}
 	
-	public void playerKey(String id, String keys) {
-		Player p = board.getPlayer(id);
-		if (p == null) {
-			return;
-		}
+	public void playerKey(String id, String keys) throws InterruptedException {
 		boolean up = keys.contains("U");
 		boolean down = keys.contains("D");
 		boolean left = keys.contains("L");
 		boolean right = keys.contains("R");
-		p.key(up, down, left, right);
+		board.playerKey(id, up, down, left, right);
 	}
 	
 	private void startTimerThread() throws InterruptedException {

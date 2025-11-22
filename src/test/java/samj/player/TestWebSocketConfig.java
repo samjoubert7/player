@@ -4,7 +4,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import lombok.RequiredArgsConstructor;
-import samj.player.model.Board;
 import samj.player.service.PlayerService;
 import samj.player.util.JacksonMapper;
 import samj.player.ws.PlayerWebSocketHandler;
@@ -26,14 +25,9 @@ public class TestWebSocketConfig {
 		return Executors.newVirtualThreadPerTaskExecutor();
 	}
     
-    @Bean("board")
-    Board getBoard() {
-    	return new Board();
-    }
-
     @Bean("playerService")
     PlayerService getPlayerService() {
-    	return new PlayerService(getVirtualThreadExecutor(), getMapper(), getBoard());
+    	return new PlayerService(getVirtualThreadExecutor());
     }
     
     @Bean("customWebSocketHandler")

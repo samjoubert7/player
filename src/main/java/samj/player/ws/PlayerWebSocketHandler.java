@@ -2,7 +2,7 @@ package samj.player.ws;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.apachecommons.CommonsLog;
-import samj.player.model.Player;
+import samj.player.service.PlayerInfo;
 import samj.player.service.PlayerService;
 import samj.player.util.JacksonMapper;
 import samj.player.util.PlayerUtil;
@@ -180,9 +180,9 @@ public class PlayerWebSocketHandler implements WebSocketHandler, ApplicationList
 	}
 
 	private void setupPlayer(PlayerWebSocketSession session) throws InterruptedException {
-		Player player = playerService.addPlayer(session);
-		session.setPlayerId(player.getId());
-		log.info("WebSocket " + session.getSessionId() + " Player id: " + player.getId());
+		String playerId = playerService.addPlayer(session);
+		session.setPlayerId(playerId);
+		log.info("WebSocket " + session.getSessionId() + " Player id: " + playerId);
 	}
 	
 	private void endPlayer(PlayerWebSocketSession session) {
@@ -211,25 +211,30 @@ public class PlayerWebSocketHandler implements WebSocketHandler, ApplicationList
 	        // Send player name updates
 	        String allPlayerNames = getAllPlayerNames();
 	        customSession.send("$n:" + allPlayerNames);
-	        Player player = playerService.getPlayer(playerId);
-	        sendAll("$n:" + player.getId() + ":" + player.getName());
+	        PlayerInfo info = new PlayerInfo();
+	        if (playerService.getPlayerInfo(playerId, info)) {
+	        	sendAll("$n:" + info.getId() + ":" + info.getName());
+	        }
 		} catch (InterruptedException e) {
 			log.error("Send setup interrupted");
 		}
 	}
 
-	private String getAllPlayerNames() {
+	private String getAllPlayerNames() throws InterruptedException {
 		StringBuilder sb = new StringBuilder(128);
-		for (Player p : playerService.getPlayerList()) {
-			if (p.isAuto()) {
-				continue;
-			}
-			if (sb.length() > 0) {
-				sb.append('\n');
-			}
-			sb.append(p.getId()).append(':').append(p.getName());
-		}
+		PlayerInfo info = new PlayerInfo();
+		playerService.iteratePlayer(sb, info, this::getPlayerNameItem);
 		return sb.toString();
+	}
+	
+	private void getPlayerNameItem(StringBuilder sb, PlayerInfo info) {
+		if (info.isAuto()) {
+			return;
+		}
+		if (sb.length() > 0) {
+			sb.append('\n');
+		}
+		sb.append(info.getId()).append(':').append(info.getName());
 	}
 
 	// Initiate sending to all sessions, and then wait for each one to complete.

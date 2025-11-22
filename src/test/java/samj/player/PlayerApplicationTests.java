@@ -10,9 +10,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.web.socket.CloseStatus;
 
-import samj.player.model.Board;
-import samj.player.model.Init;
-import samj.player.model.Player;
 import samj.player.service.PlayerService;
 import samj.player.util.JacksonMapper;
 import samj.player.ws.PlayerWebSocketHandler;
@@ -23,9 +20,6 @@ class PlayerApplicationTests {
 
 	@Autowired
 	JacksonMapper mapper;
-
-	@Autowired
-	Board board;
 
 	@Autowired
 	PlayerService playerService;
@@ -40,13 +34,12 @@ class PlayerApplicationTests {
 	}
 
 	private void basicTests() throws Exception {
-		Player p = board.getPlayerList().getFirst();
-		String text = mapper.toString(p);
-		System.out.println("Player: " + text);
-		System.out.println("Player Desc: " + p.toDesc());
+		String playerId = playerService.getFirstPlayerId();
+		String text = playerService.getPlayerDesc(playerId);
+		System.out.println("Player Id: " + playerId);
+		System.out.println("Player Desc: " + text);
 		
-		Init desc = new Init(p.getId(), board);
-		text = mapper.toString(desc);
+		text = playerService.getInit(playerId);
 		System.out.println("BoardDesc: " + text);
 	}
 

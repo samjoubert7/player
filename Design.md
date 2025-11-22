@@ -9,14 +9,14 @@ while drones are constantly in motion.
 Each browser instance opens its own Web Socket connection to the server and all communication takes place over it.
 
 # Web Socket Overview
-Before web sockets the browser always requested data from the server but the server had no way to communicate with the browser.
+Before web sockets were available the browser always requested data from the server but the server had no way to communicate with the browser.
 The browser can do long-polling but sometimes the application needs real 2-way data flow.
 
 A web socket is a TCP socket between browser and server which allows 2-way communication. The web socket functionality is supported natively by most browsers nowadays.  Both server and browser quickly detect if the link is down.  The browser can still use normal HTTP requests while the web socket is active.
 
 The browser is responsible for initiating the web socket connection.  The web server maintains the set of web socket sessions and it needs to know which session to send data out on.
 
-A web socket can handle only 1 message at a time in each direction.  The browser implementation is single-threaded but the server may well have multiple threads that can send messages on the same socket at the same time -- these must be co-ordinated so the messages are sent sequentially.
+A web socket can handle only 1 message at a time in each direction.  The browser implementation is single-threaded but the server may have multiple threads that can send messages on the same socket at the same time -- these must be co-ordinated so the messages are sent sequentially.
 
 # Components
 
@@ -42,14 +42,13 @@ The game board receives the player moves and has a timer to move each player and
 
 The server maintains a websocket session per browser instance.
 
-
 # Sequence Of Events
 1. User loads the webpage in the browser.
 2. The browser requests a random username from the server and the user can modify it.
 3. User clicks the connect button and the browser opens a new websocket.
 4. The server receives the request and establishes the websocket connection.
 5. The server creates a new player object and adds it to the board.
-6. The server starts a timer to make the next moves periodically.
+6. The server starts a timer to make the next moves periodically, if that has not been started yet.
 7. After each move, send the updated player and drone locations to all the websockets.
 8. User clicks the disconnect button to end involvement with the game.
 9. The disconnected user's icon is removed from all the other user screens.
@@ -59,6 +58,8 @@ The server maintains a websocket session per browser instance.
 
 ## Board
 This structure contains the board dimensions, the set of player objects, and the code to move the pieces and detect collisions.
+
+The collision handling may result in the pieces moving wierdly from time to time but debugging that is a bit low on my priority list.
 
 ## Player
 Each player object represents a moving game piece on the board.
@@ -163,19 +164,34 @@ A separate virtual thread is started for sending out data on each Web Socket.  W
 
 The main timer thread could have been a normal (platform) scheduled thread but that requires a second thread executor.  It is easy enough to implement the thread delay and reschedule for virtual threads.
 
+The threading model for board updates has to contend with multiple event types:
+1. Adding / removing players.
+2. Board timed animation.
+3. Player direction changes from UI.
+
+After the board animation has moved all the players it has to check for collisions, and the state of the board and all the players cannot change until this has completed.  The handling of keypresses cannot be done while the board is updating all the players because the logic for handling collisions is dependent on the direction the player was moving at the time of collision.  For this reason all the board updates have to obtain a single lock so they can be made in sequence.
+
+Therefore the Board and Player classes have package-local access so they can only be used by the PlayerService.  The PlayerService ensures all Board updates will obtain the lock before executing and then release it afterward.  Any code outside the package can get a PlayerInfo snapshot.
+
+The code has to handle the situation where the time between board move events isn't long enough to handle all the other events, but that can be left to the Java scheduler which avoids thread starvation for threads waiting on a lock.
+
+There was an option to define a read/write lock so that adding/removing players and key handling updates could be made in parallel during "read" mode, but then there is a need for per-player locking and the board read/write lock has to ensure those changes complete before switching from read mode to write mode.  A separate lock is then also required for updating the player map.  All the problems and complexities disappear when there is a single board lock.
+
+There is a precedent for such a single lock: search for "Why GUIs are Single-Threaded" in an internet search engine.
+
 # Synchronization
 
-The board data structures are all synchronized on the same lock.
+Each web socket session has its own re-entrant lock for sending data.  A separate virtual thread is started for sending each websocket message in case it needs to wait for the lock.
 
-## Javascript Implementation Details
+The board data structures are all synchronized on the same lock as described in section [Threading Model](#threading-model) above.
+
+# Browser Javascript Implementation Details
 
 The position of each player and drone needs to be saved so it can be erased before drawing it at the new location.  There are some corner cases where the icon hasn't been drawn and then the saved location needs to be marked as invalid so we don't erase an already-drawn icon.  The X and Y locations can also be outside the canvas size a little, meaning they can be less than zero down to `- iconSize`.
 
-The invalid X and Y variables are set to `undefined` but the check for valid values has to be `if (Number.isFinite(variable))` so that it returns true if the variable is set to numeric value zero.  The `if (variable)` returns false for a zero value.
+The invalid X and Y variables are set to `undefined` but the check for valid values has to be `if (Number.isFinite(variable))` so that it returns true if the variable is set to numeric value zero.  The `if (variable)` cannot be used because it returns false for a zero value.
 
-My itty-bitty development laptop isn't performant enough for TypeScript development, but this Javascript code is small enough that a bit of developer discipline means I can get away without the type safety checks.
-
-## Random Number Generator
+# Random Number Generator
 
 The app needs a steady supply of pseudo-random numbers. The Marsaglia XORWOW generator is used which has the following advantages:
 1. Produces numbers quickly with XOR and bit shift operations.
